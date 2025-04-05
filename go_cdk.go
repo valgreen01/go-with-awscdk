@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/aws/aws-cdk-go/awscdk/v2"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsapigateway"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsdynamodb"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
 
@@ -40,12 +41,33 @@ func NewGoCdkStack(scope constructs.Construct, id string, props *GoCdkStackProps
 		Handler: jsii.String("main"),
 	})
 
+	myDynamoTable.GrantReadWriteData(myLambdaFunction)
+
 	// example sqs resource
 	// queue := awssqs.NewQueue(stack, jsii.String("GoCdkQueue"), &awssqs.QueueProps{
 	// 	VisibilityTimeout: awscdk.Duration_Seconds(jsii.Number(300)),
 	// })
 
-	myDynamoTable.GrantReadWriteData(myLambdaFunction)
+	api := awsapigateway.NewRestApi(stack, jsii.String("myApyGateway"), &awsapigateway.RestApiProps{
+		DefaultCorsPreflightOptions: &awsapigateway.CorsOptions{
+			AllowHeaders: jsii.Strings("Content-Type", "Authorization"),
+			AllowMethods: jsii.Strings("GET", "POST", "PUT", "DELETE", "OPTIONS"),
+			AllowOrigins: jsii.Strings("*"),
+		},
+		DeployOptions: &awsapigateway.StageOptions{
+			LoggingLevel: awsapigateway.MethodLoggingLevel_INFO,
+		},
+		CloudWatchRole: jsii.Bool(true), // Uncomment to enable CloudWatch logging in case of errors
+	})
+
+	integration := awsapigateway.NewLambdaIntegration(myLambdaFunction, nil)
+
+	// Define the routes
+	registerResource := api.Root().AddResource(jsii.String("register"), nil)
+	registerResource.AddMethod(jsii.String("POST"), integration, nil)
+
+	loginResource := api.Root().AddResource(jsii.String("login"), nil)
+	loginResource.AddMethod(jsii.String("POST"), integration, nil)
 
 	return stack
 }
